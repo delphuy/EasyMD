@@ -1,8 +1,0 @@
-{
-  "name": "doocs-md-runtime",
-  "type": "commonjs",
-  "private": true,
-  "dependencies": {
-    "isomorphic-dompurify": "3.17.0"
-  }
-}

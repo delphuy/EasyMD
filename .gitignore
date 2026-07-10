@@ -64,3 +64,15 @@ apps/utools/dist
 apps/utools/release
 
 .worktrees/
+
+# Non-core directories (removed from repo)
+apps/api/
+apps/vscode/
+apps/utools/
+docs/
+docker/
+patches/
+scripts/
+CHANGELOG.md
+CONTRIBUTING.md
+SECURITY.md
