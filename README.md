@@ -16,8 +16,6 @@
 - **AI 助手** — 智能对话、文本优化、翻译纠错、内容总结、文生图
 - **多图床** — GitHub / 七牛 / 又拍云 / 阿里云 / Telegram / Cloudinary / 自定义 S3
 - **浏览器插件** — Chrome / Firefox 侧边栏注入
-- **VSCode 插件** — 编辑器内直接使用
-- **uTools 插件** — 效率工具快捷入口
 - **MCP Server** — AI 工具链集成
 
 ## 技术栈
@@ -27,7 +25,7 @@
 | 前端 | Vue 3 + CodeMirror 6 + TailwindCSS |
 | 桌面 | Tauri 2（Rust） |
 | 构建 | Vite 8 + pnpm Monorepo |
-| 部署 | Cloudflare Workers / Docker / 静态托管 |
+| 部署 | Cloudflare Workers / 静态托管 |
 
 ## 环境
 
@@ -69,9 +67,6 @@ pnpm desktop:build
 ```
 apps/web            主界面（Vue 3 + CodeMirror 6）
 apps/desktop        Tauri 2 桌面壳
-apps/vscode         VSCode 插件
-apps/utools         uTools 插件
-apps/api            Cloudflare Workers API
 packages/core       Markdown 渲染引擎
 packages/shared     主题与编辑器配置
 packages/desktop-fs 本地文件 / 图片路径工具
