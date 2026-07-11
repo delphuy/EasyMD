@@ -10,22 +10,23 @@
 - **三种布局** — 编辑 / 双栏同步 / 预览，随场景切换
 - **三主题** — 经典 · 优雅 · 简洁
 - **丰富渲染** — 数学公式（KaTeX）、Mermaid / PlantUML / 信息图
-- **本地文件** — 打开 / 保存 / 文件夹同步，本地图片拖入与粘贴
+- **本地文件** — 打开 / 保存 / 文件夹同步，记住上次打开目录
 - **多格式导出** — Markdown / HTML / PDF / Word
 - **一键复制** — MD 代码 / HTML 代码 / 公众号排版
 - **AI 助手** — 智能对话、文本优化、翻译纠错、内容总结、文生图
-- **多图床** — GitHub / 七牛 / 又拍云 / 阿里云 / Telegram / Cloudinary / 自定义 S3
+- **本地图片** — 磁盘路径引用、相对路径自动转换、剪贴板粘贴兼容
+- **多图床** — Gitee / 阿里云 / 七牛 / 腾讯云 / 又拍云 / 公众号 / MinIO / 自定义
 - **浏览器插件** — Chrome / Firefox 侧边栏注入
 - **MCP Server** — AI 工具链集成
 
 ## 技术栈
 
-| 层 | 技术 |
-|---|---|
+| 层   | 技术                               |
+| ---- | ---------------------------------- |
 | 前端 | Vue 3 + CodeMirror 6 + TailwindCSS |
-| 桌面 | Tauri 2（Rust） |
-| 构建 | Vite 8 + pnpm Monorepo |
-| 部署 | Cloudflare Workers / 静态托管 |
+| 桌面 | Tauri 2（Rust）                    |
+| 构建 | Vite 8 + pnpm Monorepo             |
+| 部署 | Cloudflare Workers / 静态托管      |
 
 ## 环境
 
