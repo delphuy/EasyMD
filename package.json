@@ -1,7 +1,7 @@
 {
   "name": "easymd",
   "type": "module",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "private": true,
   "description": "EasyMD — lightweight desktop Markdown editor",
   "engines": {

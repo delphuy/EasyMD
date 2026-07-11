@@ -147,6 +147,9 @@ export const useUIStore = defineStore(`ui`, () => {
   const searchTabRequest = ref<{ word: string, showReplace: boolean } | null>(null)
 
   function openSearchTab(searchWord: string = '', showReplace: boolean = false) {
+    // 纯预览时编辑器面板隐藏，先切到双栏才能看到查找框
+    if (viewMode.value === `preview`)
+      viewMode.value = `split`
     searchTabRequest.value = { word: searchWord, showReplace }
   }
 

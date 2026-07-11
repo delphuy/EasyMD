@@ -2,19 +2,17 @@ import type { IConfigOption } from '@md/shared/types'
 
 type Translate = (key: string) => string
 
+/** 图床列表：本地插入优先，其余为国内图床 */
 export const UPLOAD_HOST_VALUES = [
-  `default`,
-  `github`,
+  `local`,
+  `gitee`,
   `aliOSS`,
-  `txCOS`,
   `qiniu`,
-  `minio`,
-  `s3`,
-  `mp`,
-  `r2`,
+  `txCOS`,
   `upyun`,
-  `telegram`,
-  `cloudinary`,
+  `mp`,
+  `minio`,
+  `default`,
   `formCustom`,
 ] as const
 

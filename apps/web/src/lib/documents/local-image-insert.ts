@@ -1,4 +1,13 @@
-import { dirnameOfDocument, normalizeDocumentPath } from '@md/desktop-fs'
+import {
+  dirnameOfDocument,
+  isAbsoluteLocalPath,
+  isRemoteOrDataImageSrc,
+  normalizeDocumentPath,
+  toRelativeImageSrc,
+} from '@md/desktop-fs'
+import { getFileSystemPath } from '@/lib/documents/file-path-map'
+
+export { getFileSystemPath } from '@/lib/documents/file-path-map'
 
 function isTauriRuntime(): boolean {
   return !!(window as any).__TAURI_INTERNALS__ || !!(window as any).__TAURI__
@@ -20,6 +29,21 @@ function extensionOf(file: File): string {
 }
 
 /**
+ * Build markdown image syntax that won't break on spaces / parentheses in local paths.
+ * CommonMark: destination with special chars should use angle brackets.
+ */
+export function formatMarkdownImage(src: string, alt: string = ``): string {
+  const s = (src || ``).trim()
+  if (!s)
+    return ``
+  // data/http URLs stay as-is; local paths with spaces or () need <...>
+  const needsAngle = !isRemoteOrDataImageSrc(s)
+    && (/[\s()]/.test(s) || isAbsoluteLocalPath(s))
+  const dest = needsAngle ? `<${s}>` : s
+  return `![${alt}](${dest})`
+}
+
+/**
  * Convert File to a data URL for in-document embedding when no disk path is available.
  */
 export function fileToDataUrl(file: File): Promise<string> {
@@ -33,15 +57,29 @@ export function fileToDataUrl(file: File): Promise<string> {
 
 /**
  * Insert local image as markdown src.
- * - Desktop + document path: write to `{docDir}/{docBase}.assets/{file}` and return relative path
- * - Otherwise: data URL (no cloud upload)
+ * Priority:
+ * 1. Existing filesystem path on the File (picked from disk) → relative or absolute path (never base64)
+ * 2. Desktop + saved document → write into `{docBase}.assets/` and return relative path
+ * 3. Otherwise → data URL (clipboard screenshots without a path / pure web unsaved)
  */
 export async function resolveLocalImageMarkdownSrc(
   file: File,
   documentPath: string | null | undefined,
-): Promise<{ src: string, mode: 'relative' | 'data' }> {
+): Promise<{ src: string, mode: 'relative' | 'absolute' | 'data' }> {
   const docPath = documentPath ? normalizeDocumentPath(documentPath) : ``
+  const filePath = getFileSystemPath(file)
 
+  // Prefer real disk path from file picker — never embed as base64
+  if (filePath && isAbsoluteLocalPath(filePath)) {
+    if (docPath) {
+      const rel = toRelativeImageSrc(docPath, filePath)
+      if (rel)
+        return { src: rel, mode: `relative` }
+    }
+    return { src: filePath, mode: `absolute` }
+  }
+
+  // No path (paste/screenshot): copy next to document when possible
   if (isTauriRuntime() && docPath) {
     try {
       const { writeFile, mkdir } = await import(`@tauri-apps/plugin-fs`)

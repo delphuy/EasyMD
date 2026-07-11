@@ -26,6 +26,7 @@ export default {
     enableScrollSync: `Enable scroll sync`,
     lastModified: `Last modified`,
     toggleDarkMode: `Toggle dark mode`,
+    searchContent: `Search content...`,
   },
   rightSlider: {
     title: `Styles`,
@@ -83,7 +84,8 @@ export default {
     toggleDark: `Toggle dark mode`,
     stylePanel: `Style panel`,
     formatDocument: `Format document`,
-    insertImage: `Insert image`,
+    insertImage: `Insert local image`,
+    imageHost: `Image host settings`,
     insertTable: `Insert table`,
     insertFormula: `Insert formula`,
     insertComponent: `Insert component`,

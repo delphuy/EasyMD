@@ -5,6 +5,7 @@ import {
   BookOpen,
   Calendar,
   Clock,
+  CloudUpload,
   Code2,
   GitBranch,
   Heading1,
@@ -40,9 +41,11 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { useEditorToolbarActions } from '@/composables/useEditorToolbarActions'
+import { useUIStore } from '@/stores/ui'
 
 const { t, locale } = useI18n()
 const actions = useEditorToolbarActions()
+const uiStore = useUIStore()
 
 interface ToolbarItem {
   id: string
@@ -108,6 +111,7 @@ const groups = computed<ToolbarGroup[]>(() => {
       row: 1,
       items: [
         { id: `image`, label: t(`menu.image`), icon: Image, run: actions.image },
+        { id: `imageHost`, label: t(`menu.imageHost`), icon: CloudUpload, run: () => uiStore.toggleShowUploadImgDialog(true) },
         { id: `table`, label: t(`menu.table`), icon: Table, run: actions.table },
         { id: `link`, label: t(`menu.link`), icon: Link, run: actions.link },
         { id: `save`, label: t(`common.save`), icon: Save, run: actions.save },

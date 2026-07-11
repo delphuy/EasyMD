@@ -527,7 +527,7 @@ const showDeviceToggle = computed(() => viewMode.value !== `edit` && !isMobile.v
 
       <!-- 右侧：统计信息 -->
       <div class="ml-auto flex shrink-0 items-center gap-2.5 sm:gap-3.5">
-        <!-- 视图模式切换 -->
+        <!-- 视图模式切换（搜索已移至顶部标题栏） -->
         <div class="flex items-center gap-0.5 rounded-md border border-border/60 p-0.5">
           <Tooltip v-for="mode in viewModes" :key="mode.key">
             <TooltipTrigger as-child>

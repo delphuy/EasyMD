@@ -173,7 +173,14 @@ export function useCommandPalette() {
         id: `insert-image`,
         label: t(`commandPalette.insertImage`),
         group: t(`commandPalette.group.insert`),
-        keywords: [`图片`, `image`, `上传`, `图床`],
+        keywords: [`图片`, `image`, `本地图片`, `图床`],
+        action: () => { uiStore.toggleShowUploadImgDialog(true) },
+      },
+      {
+        id: `image-host`,
+        label: t(`commandPalette.imageHost`),
+        group: t(`commandPalette.group.insert`),
+        keywords: [`图床`, `上传`, `gitee`, `oss`, `image host`, `upload`],
         action: () => { uiStore.toggleShowUploadImgDialog(true) },
       },
       {

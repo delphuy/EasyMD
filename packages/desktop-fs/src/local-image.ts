@@ -1,7 +1,7 @@
 import { normalizeDocumentPath } from './path'
 
 /** Remote / in-memory schemes that should not be joined with a document directory. */
-const REMOTE_OR_DATA_SCHEME = /^(https?:|data:|blob:|asset:|tauri:|chrome-extension:|moz-extension:)/i
+const REMOTE_OR_DATA_SCHEME = /^(?:https?:|data:|blob:|asset:|tauri:|chrome-extension:|moz-extension:)/i
 
 /**
  * True when the image src is already a network, data, or asset protocol URL.
@@ -17,7 +17,7 @@ export function isAbsoluteLocalPath(src: string): boolean {
   const p = normalizeDocumentPath(src)
   if (!p)
     return false
-  if (/^[A-Za-z]:\//.test(p))
+  if (/^[A-Z]:\//i.test(p))
     return true
   // POSIX absolute (and UNC-style //server/share → after normalize may still start with /)
   if (p.startsWith(`/`))
@@ -68,7 +68,7 @@ export function joinPath(dir: string, relative: string): string {
       if (parts.length === 0)
         continue
       // Do not pop Windows drive root like "C:"
-      if (parts.length === 1 && /^[A-Za-z]:$/.test(parts[0]!))
+      if (parts.length === 1 && /^[A-Z]:$/i.test(parts[0]!))
         continue
       // Do not pop below POSIX root
       if (parts.length === 1 && parts[0] === ``)
@@ -82,12 +82,69 @@ export function joinPath(dir: string, relative: string): string {
   if (parts.length === 0)
     return ``
   // Windows drive-only
-  if (parts.length === 1 && /^[A-Za-z]:$/.test(parts[0]!))
+  if (parts.length === 1 && /^[A-Z]:$/i.test(parts[0]!))
     return `${parts[0]}/`
   // POSIX root only
   if (parts.length === 1 && parts[0] === ``)
     return `/`
   return parts.join(`/`)
+}
+
+/**
+ * Split a normalized absolute path into comparable segments.
+ * Windows: `C:/a/b` → [`C:`, `a`, `b`]
+ * POSIX: `/home/u` → [``, `home`, `u`] (empty first = root)
+ */
+function pathSegments(normalizedAbs: string): string[] {
+  if (normalizedAbs === `/`)
+    return [``]
+  return normalizedAbs.split(`/`)
+}
+
+/**
+ * Build a markdown-friendly relative `src` from an absolute image path
+ * when it shares a common root with the document directory.
+ *
+ * Returns null when paths are on different roots (e.g. different drives).
+ */
+export function toRelativeImageSrc(
+  documentPath: string | null | undefined,
+  absoluteImagePath: string,
+): string | null {
+  const doc = documentPath ? normalizeDocumentPath(documentPath) : ``
+  const abs = normalizeDocumentPath(absoluteImagePath)
+  if (!doc || !abs || !isAbsoluteLocalPath(abs))
+    return null
+
+  const dir = dirnameOfDocument(doc)
+  if (!dir)
+    return null
+
+  // Different Windows drives → cannot form a relative path
+  const docDrive = dir.match(/^([A-Z]:)/i)?.[1]?.toUpperCase()
+  const imgDrive = abs.match(/^([A-Z]:)/i)?.[1]?.toUpperCase()
+  if (docDrive && imgDrive && docDrive !== imgDrive)
+    return null
+
+  const baseParts = pathSegments(dir)
+  const absParts = pathSegments(abs)
+
+  let i = 0
+  while (i < baseParts.length && i < absParts.length && baseParts[i] === absParts[i])
+    i++
+
+  // Must share at least the root/drive segment
+  if (i === 0)
+    return null
+
+  const up = baseParts.length - i
+  const down = absParts.slice(i)
+  const relParts = [...Array.from({ length: up }).fill(`..`), ...down]
+  if (relParts.length === 0)
+    return `./`
+
+  const rel = relParts.join(`/`)
+  return rel.startsWith(`.`) ? rel : `./${rel}`
 }
 
 /**
@@ -139,19 +196,39 @@ export function needsAssetConversion(resolved: string | null | undefined): boole
  * Pure HTML rewrite helper: for each `<img src="...">`, resolve local/relative paths
  * and pass absolute local paths through `toAssetUrl` (e.g. Tauri `convertFileSrc`).
  * Remote/data URLs are left unchanged.
+ *
+ * Absolute paths are rewritten even when `documentPath` is missing.
+ * Relative paths require `documentPath` to resolve.
  */
 export function rewriteHtmlImageSrcs(
   html: string,
   documentPath: string | null | undefined,
   toAssetUrl: (absolutePath: string) => string,
 ): string {
-  if (!html || !documentPath)
+  if (!html)
     return html
 
   return html.replace(
-    /(<img\b[^>]*?\bsrc=["'])([^"']+)(["'])/gi,
+    /(<img\b[^>]+?\bsrc=["'])([^"']+)(["'])/gi,
     (full, prefix: string, src: string, suffix: string) => {
-      const resolved = resolveImagePath(documentPath, src)
+      const trimmed = src.trim()
+      if (!trimmed || isRemoteOrDataImageSrc(trimmed))
+        return full
+
+      // Absolute path: convert regardless of document path
+      if (isAbsoluteLocalPath(trimmed)) {
+        try {
+          return `${prefix}${toAssetUrl(normalizeDocumentPath(trimmed))}${suffix}`
+        }
+        catch {
+          return full
+        }
+      }
+
+      if (!documentPath)
+        return full
+
+      const resolved = resolveImagePath(documentPath, trimmed)
       if (!resolved || !needsAssetConversion(resolved))
         return full
       try {

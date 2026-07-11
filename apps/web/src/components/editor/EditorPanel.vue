@@ -14,7 +14,7 @@ import { completeInitialPreviewBoot } from '@/composables/useInitialPreviewBoot'
 import { useLocalizedUploadHostOptions } from '@/composables/useLocalizedUploadHosts'
 import { useSlashCommand } from '@/composables/useSlashCommand'
 import { formatLocalDateTime } from '@/i18n/translate'
-import { resolveLocalImageMarkdownSrc } from '@/lib/documents/local-image-insert'
+import { formatMarkdownImage, resolveLocalImageMarkdownSrc } from '@/lib/documents/local-image-insert'
 import { jumpToAdjacentHeading } from '@/lib/markdown/headingNavigation'
 import { contentHasMath, loadMathJax, MATHJAX_READY_EVENT } from '@/lib/preview/mathjax'
 import { validateImageFile } from '@/lib/upload/validate-image'
@@ -90,7 +90,14 @@ const isImgLoading = ref(false)
 const searchTabRef = useTemplateRef<InstanceType<typeof SearchTab>>(`searchTabRef`)
 const pendingSearchRequest = ref<{ selected: string } | null>(null)
 
+function ensureEditorVisibleForSearch() {
+  // 纯预览时编辑区 display:none，查找面板不可见
+  if (viewMode.value === `preview`)
+    uiStore.setViewMode(`split`)
+}
+
 function openSearchWithSelection(view: EditorView) {
+  ensureEditorVisibleForSearch()
   const selection = view.state.selection.main
   const selected = view.state.doc.sliceString(selection.from, selection.to).trim()
 
@@ -108,6 +115,7 @@ function openSearchWithSelection(view: EditorView) {
 }
 
 function openReplaceWithSelection(view: EditorView) {
+  ensureEditorVisibleForSearch()
   const selection = view.state.selection.main
   const selected = view.state.doc.sliceString(selection.from, selection.to).trim()
 
@@ -151,12 +159,67 @@ watch(searchTabRequest, (request) => {
   }
 })
 
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement))
+    return false
+  const tag = target.tagName
+  if (tag === `INPUT` || tag === `TEXTAREA` || tag === `SELECT`)
+    return true
+  return target.isContentEditable
+}
+
 function handleGlobalKeydown(e: KeyboardEvent) {
   const editorView = codeMirrorView.value
   if (e.key === `Escape` && searchTabRef.value?.showSearchTab) {
     searchTabRef.value.showSearchTab = false
     e.preventDefault()
     editorView?.focus()
+    return
+  }
+
+  // 全局快捷键：焦点不在编辑器时仍可用（编辑器内由 CM keymap 处理）
+  const mod = e.ctrlKey || e.metaKey
+  if (!mod || e.altKey)
+    return
+
+  const key = e.key.toLowerCase()
+  // 纯预览时编辑器无焦点，F/H 必须走全局；双栏/编辑且聚焦时由 CM keymap 处理
+  const inEditor = viewMode.value !== `preview` && !!(editorView && (
+    editorView.hasFocus
+    || editorView.dom.contains(document.activeElement)
+  ))
+
+  // Ctrl+S：全局统一保存，并拦截浏览器“保存网页”
+  if (key === `s` && !e.shiftKey) {
+    e.preventDefault()
+    e.stopPropagation()
+    void saveCurrentDocument(`save`)
+    return
+  }
+
+  // 编辑器已聚焦时 F/H 交给 CodeMirror keymap
+  if (inEditor)
+    return
+
+  // 在其它可编辑表单控件内不抢占 F/H
+  if (isEditableTarget(e.target))
+    return
+
+  if (key === `f` && !e.shiftKey) {
+    e.preventDefault()
+    if (editorView)
+      openSearchWithSelection(editorView)
+    else
+      uiStore.openSearchTab(``, false)
+    return
+  }
+
+  if (key === `h` && !e.shiftKey) {
+    e.preventDefault()
+    if (editorView)
+      openReplaceWithSelection(editorView)
+    else
+      uiStore.openSearchTab(``, true)
   }
 }
 
@@ -168,16 +231,23 @@ async function handleInsertLocalImagesEvent(event: Event) {
     await insertLocalImage(file)
 }
 
-// --- Image upload ---
-async function beforeImageUpload(file: File) {
+// --- Image upload / local insert (follows imgHost selection in 图床 panel) ---
+async function getImageHost(): Promise<string> {
+  const host = (await store.get(`imgHost`)) || `local`
+  await store.set(`imgHost`, host)
+  return host
+}
+
+async function beforeImageUpload(file: File): Promise<File | false> {
   const checkResult = validateImageFile(file, t)
   if (!checkResult.ok) {
     toast.error(checkResult.msg)
     return false
   }
 
-  const imgHost = (await store.get(`imgHost`)) || `default`
-  await store.set(`imgHost`, imgHost)
+  const imgHost = await getImageHost()
+  if (imgHost === `local`)
+    return checkResult.file
 
   const config = await store.get(`${imgHost}Config`)
   const isValidHost = imgHost === `default` || config
@@ -188,15 +258,21 @@ async function beforeImageUpload(file: File) {
     return false
   }
 
-  return true
+  return checkResult.file
 }
 
 function insertMarkdownImage(src: string) {
   if (!src)
     return
-  const markdownImage = `![](${src})`
+  const markdownImage = formatMarkdownImage(src)
+  if (!markdownImage)
+    return
   if (codeMirrorView.value) {
     codeMirrorView.value.dispatch(codeMirrorView.value.state.replaceSelection(`\n${markdownImage}\n`))
+    // 立即刷新预览，避免大 data URL 仅依赖防抖时预览滞后或丢失
+    clearTimeout(changeTimer.value)
+    commitEditorContentToPost()
+    editorRefresh()
   }
 }
 
@@ -224,12 +300,12 @@ async function insertLocalImage(file: File) {
   try {
     isImgLoading.value = true
     const docPath = currentPost.value?.path ?? null
-    const { src, mode } = await resolveLocalImageMarkdownSrc(file, docPath)
+    const { src, mode } = await resolveLocalImageMarkdownSrc(checkResult.file, docPath)
     insertMarkdownImage(src)
     toast.success(
-      mode === `relative`
-        ? t('editorPanel.localImageSaved')
-        : t('editorPanel.localImageInserted'),
+      mode === `data`
+        ? t('editorPanel.localImageInserted')
+        : t('editorPanel.localImageSaved'),
     )
     return true
   }
@@ -248,20 +324,49 @@ async function compressImage(file: File) {
     maxWidthOrHeight: 1920,
     useWebWorker: true,
   }
-  return await imageCompression(file, options)
+  const compressed = await imageCompression(file, options)
+  // browser-image-compression returns a new Blob/File — keep desktop path mapping
+  const { copyFileSystemPath } = await import(`@/lib/documents/file-path-map`)
+  if (compressed instanceof File) {
+    copyFileSystemPath(file, compressed)
+  }
+  else {
+    const named = new File([compressed], file.name, { type: compressed.type || file.type })
+    copyFileSystemPath(file, named)
+    return named
+  }
+  return compressed
 }
 
+/**
+ * Unified image intake: local host → local path/assets; otherwise cloud upload.
+ * Paste / dialog / drag all share this so behavior matches 图床 default selection.
+ */
 async function uploadImage(
   file: File,
   cb?: { (url: any, data: string): void, (arg0: unknown): void } | undefined,
   applyUrl?: boolean,
 ) {
   try {
-    if (!(await beforeImageUpload(file))) {
+    const validated = await beforeImageUpload(file)
+    if (!validated) {
       if (cb)
         cb(``, ``)
       return
     }
+    file = validated
+
+    const imgHost = await getImageHost()
+    if (imgHost === `local`) {
+      const ok = await insertLocalImage(file)
+      if (cb)
+        cb(ok ? `local` : ``, ``)
+      if (ok && applyUrl) {
+        setTimeout(toggleShowUploadImgDialog, 600, false)
+      }
+      return
+    }
+
     isImgLoading.value = true
     const useCompression = (await store.get(`useCompression`)) === `true`
     if (useCompression) {
@@ -391,7 +496,7 @@ function mdLocalToRemote() {
           else {
             const file = await handle.getFile()
             if (file.type.startsWith(`image/`))
-              void insertLocalImage(file)
+              void uploadImage(file)
           }
         })
     }
@@ -401,7 +506,7 @@ function mdLocalToRemote() {
 // --- Image paste handler for CodeMirror ---
 function createPasteHandler() {
   return (event: ClipboardEvent, view: EditorView) => {
-    // 1. 处理剪贴板中的文件 (截图/复制文件) — 本地插入，不走云图床
+    // 1. 剪贴板图片：按图床面板当前选择（本地插入 / 云上传）
     if (event.clipboardData?.items && [...event.clipboardData.items].some(item => item.kind === 'file')) {
       if (isImgLoading.value) {
         return true
@@ -413,7 +518,7 @@ function createPasteHandler() {
         return true
       void (async () => {
         for (const item of files)
-          await insertLocalImage(item)
+          await uploadImage(item)
       })()
       return true
     }
@@ -504,13 +609,7 @@ function createFormTextArea(dom: HTMLDivElement) {
       Prec.high(keymap.of([
         { key: `Mod-Alt-ArrowUp`, run: view => jumpToAdjacentHeading(view, `prev`) },
         { key: `Mod-Alt-ArrowDown`, run: view => jumpToAdjacentHeading(view, `next`) },
-        {
-          key: `Mod-s`,
-          run: () => {
-            void saveCurrentDocument(`save`)
-            return true
-          },
-        },
+        // Ctrl/Cmd+S 由全局 keydown 统一处理，避免与 document 监听重复保存
       ])),
       placeholderCompartment.of(editorPlaceholder()),
       themeCompartment.of(theme(isDark.value)),
@@ -609,7 +708,8 @@ onMounted(() => {
     void completeInitialPreviewBoot()
   })
 
-  document.addEventListener(`keydown`, handleGlobalKeydown, { passive: false, capture: false })
+  // capture: 优先拦截 Ctrl+S，避免浏览器默认保存网页
+  document.addEventListener(`keydown`, handleGlobalKeydown, { passive: false, capture: true })
 })
 
 watch(isDark, () => {
@@ -695,7 +795,7 @@ onUnmounted(() => {
   window.removeEventListener(`easymd-insert-local-images`, handleInsertLocalImagesEvent as EventListener)
   clearTimeout(historyTimer.value)
   clearTimeout(changeTimer.value)
-  document.removeEventListener(`keydown`, handleGlobalKeydown, { capture: false })
+  document.removeEventListener(`keydown`, handleGlobalKeydown, { capture: true })
 })
 
 defineExpose({

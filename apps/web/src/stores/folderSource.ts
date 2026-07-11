@@ -110,9 +110,17 @@ export const useFolderSourceStore = defineStore(`folderSource`, () => {
       isLoading.value = true
       loadError.value = ``
 
+      const {
+        getDirectoryPickerStartIn,
+        setLastDirectoryHandle,
+        setLastOpenDirectory,
+      } = await import(`@/lib/documents/last-open-directory`)
+
+      // id 让浏览器记住该选择器上次目录；startIn 优先用会话内 handle
       const handle = await window.showDirectoryPicker({
+        id: `easymd-open-folder`,
         mode: `readwrite`,
-        startIn: `documents`,
+        startIn: getDirectoryPickerStartIn(),
       })
 
       // 请求权限
@@ -121,6 +129,10 @@ export const useFolderSourceStore = defineStore(`folderSource`, () => {
         toast.error(t('store.folder.permissionDenied'))
         return
       }
+
+      // 记住本次目录，下次默认打开这里
+      setLastDirectoryHandle(handle)
+      await setLastOpenDirectory(handle.name)
 
       // 检查是否已经打开过这个文件夹
       let folderId: string

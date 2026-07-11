@@ -8,6 +8,7 @@ import {
   needsAssetConversion,
   resolveImagePath,
   rewriteHtmlImageSrcs,
+  toRelativeImageSrc,
 } from './local-image'
 
 describe(`isRemoteOrDataImageSrc`, () => {
@@ -54,6 +55,25 @@ describe(`dirnameOfDocument / joinPath`, () => {
   })
 })
 
+describe(`toRelativeImageSrc`, () => {
+  it(`builds relative path under the same directory tree`, () => {
+    expect(toRelativeImageSrc(`C:/notes/post.md`, `C:/notes/images/a.png`))
+      .toBe(`./images/a.png`)
+    expect(toRelativeImageSrc(`C:/notes/sub/post.md`, `C:/notes/images/a.png`))
+      .toBe(`../images/a.png`)
+    expect(toRelativeImageSrc(`/home/u/docs/a.md`, `/home/u/docs/pic.png`))
+      .toBe(`./pic.png`)
+  })
+
+  it(`returns null across different Windows drives`, () => {
+    expect(toRelativeImageSrc(`C:/a.md`, `D:/img.png`)).toBeNull()
+  })
+
+  it(`returns null without document path`, () => {
+    expect(toRelativeImageSrc(null, `C:/img.png`)).toBeNull()
+  })
+})
+
 describe(`resolveImagePath`, () => {
   it(`returns remote urls unchanged`, () => {
     expect(resolveImagePath(`C:/a.md`, `https://cdn.example/x.png`)).toBe(`https://cdn.example/x.png`)
@@ -87,13 +107,19 @@ describe(`rewriteHtmlImageSrcs`, () => {
     expect(out).toContain(`asset://C:/notes/img.png`)
   })
 
+  it(`rewrites absolute Windows paths even without document path`, () => {
+    const html = `<figure><img src="C:/Users/me/a.png" alt="x"/></figure>`
+    const out = rewriteHtmlImageSrcs(html, null, p => `asset://${p}`)
+    expect(out).toContain(`asset://C:/Users/me/a.png`)
+  })
+
   it(`leaves remote images alone`, () => {
     const html = `<img src="https://cdn.example/a.png"/>`
     const out = rewriteHtmlImageSrcs(html, `C:/notes/a.md`, p => `asset://${p}`)
     expect(out).toBe(html)
   })
 
-  it(`no-ops without document path`, () => {
+  it(`relative paths no-op without document path`, () => {
     const html = `<img src="./a.png"/>`
     expect(rewriteHtmlImageSrcs(html, null, p => p)).toBe(html)
   })

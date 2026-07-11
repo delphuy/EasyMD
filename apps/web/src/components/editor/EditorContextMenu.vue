@@ -31,6 +31,7 @@ import {
 import { altSign, headingLevels as baseHeadingLevels, ctrlKey, ctrlSign, shiftSign } from '@md/shared/configs'
 import { useEditorDocumentActions } from '@/composables/useEditorDocumentActions'
 import { useEditorFormat } from '@/composables/useEditorFormat'
+import { useEditorToolbarActions } from '@/composables/useEditorToolbarActions'
 import { copyPlain, readPlainFromClipboard } from '@/lib/browser/clipboard'
 import { normalizeFormulaInput } from '@/lib/markdown/formula'
 import { useConfirmStore } from '@/stores/confirm'
@@ -52,10 +53,10 @@ const { t } = useI18n()
 
 const {
   toggleShowInsertFormDialog,
-  toggleShowUploadImgDialog,
   toggleShowImportMdDialog,
   toggleShowComponentDialog,
 } = uiStore
+const toolbarActions = useEditorToolbarActions()
 
 const { editor } = storeToRefs(editorStore)
 
@@ -134,7 +135,7 @@ function downloadAsCardImage() {
           {{ t('menu.insert') }}
         </ContextMenuSubTrigger>
         <ContextMenuSubContent class="w-48">
-          <ContextMenuItem @click="toggleShowUploadImgDialog()">
+          <ContextMenuItem @click="toolbarActions.image()">
             <Image class="mr-2 h-4 w-4" />
             {{ t('menu.image') }}
           </ContextMenuItem>

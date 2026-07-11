@@ -11,6 +11,7 @@ import {
   Moon,
   Palette,
   PenLine,
+  Search,
   Smartphone,
   Sun,
 } from '@lucide/vue'
@@ -256,6 +257,14 @@ function copyMarkdown() {
 function copyHtml() {
   handleCopy(`html`)
 }
+
+// 正文搜索：放在顶部模式切换旁，Enter / 图标触发查找面板
+const contentSearchQuery = ref(``)
+
+function submitContentSearch() {
+  const word = contentSearchQuery.value.trim()
+  uiStore.openSearchTab(word, false)
+}
 </script>
 
 <template>
@@ -313,6 +322,19 @@ function copyHtml() {
 
     <!-- 右侧操作区 -->
     <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
+      <!-- 正文搜索（顶部，紧挨模式切换） -->
+      <div class="relative flex items-center">
+        <Search class="pointer-events-none absolute left-2 size-3.5 opacity-50" />
+        <input
+          v-model="contentSearchQuery"
+          type="search"
+          class="h-8 w-28 rounded-md border border-border bg-background py-1 pl-7 pr-2 text-xs text-foreground outline-none transition-all placeholder:text-muted-foreground focus:border-primary/50 focus:w-40 sm:w-36 sm:focus:w-52"
+          :placeholder="t('footer.searchContent')"
+          :aria-label="t('footer.searchContent')"
+          @keydown.enter.prevent="submitContentSearch"
+        >
+      </div>
+
       <!-- 编辑 / 双屏 / 预览 -->
       <div class="hidden sm:flex items-center gap-0.5 rounded-md border border-border p-0.5">
         <Button

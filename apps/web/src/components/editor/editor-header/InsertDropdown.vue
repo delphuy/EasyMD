@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Blocks, Image, Table } from '@lucide/vue'
+import { Blocks, ImagePlus, Table, UploadCloud } from '@lucide/vue'
+import { useEditorToolbarActions } from '@/composables/useEditorToolbarActions'
 import { normalizeFormulaInput } from '@/lib/markdown/formula'
 import { useEditorStore } from '@/stores/editor'
 import { useUIStore } from '@/stores/ui'
@@ -14,8 +15,9 @@ const { asSub } = toRefs(props)
 const { t } = useI18n()
 const uiStore = useUIStore()
 const editorStore = useEditorStore()
+const toolbarActions = useEditorToolbarActions()
 
-const { toggleShowInsertFormDialog, toggleShowUploadImgDialog, toggleShowComponentDialog } = uiStore
+const { toggleShowInsertFormDialog, toggleShowComponentDialog, toggleShowUploadImgDialog } = uiStore
 
 function openFormulaEditor() {
   const selection = normalizeFormulaInput(editorStore.getSelection())
@@ -32,10 +34,14 @@ function openFormulaEditor() {
     <MenubarSubTrigger>
       {{ t('menu.insert') }}
     </MenubarSubTrigger>
-    <MenubarSubContent class="w-52">
-      <MenubarItem @click="toggleShowUploadImgDialog()">
-        <Image class="mr-2 h-4 w-4" />
+    <MenubarSubContent class="w-56">
+      <MenubarItem @click="toolbarActions.image()">
+        <ImagePlus class="mr-2 h-4 w-4" />
         {{ t('menu.image') }}
+      </MenubarItem>
+      <MenubarItem @click="toggleShowUploadImgDialog(true)">
+        <UploadCloud class="mr-2 h-4 w-4" />
+        {{ t('menu.imageHost') }}
       </MenubarItem>
       <MenubarItem @click="openFormulaEditor()">
         <span class="mr-2 inline-flex h-4 w-4 items-center justify-center text-xs font-semibold">ƒ</span>
@@ -57,10 +63,14 @@ function openFormulaEditor() {
     <MenubarTrigger>
       {{ t('menu.insert') }}
     </MenubarTrigger>
-    <MenubarContent class="w-52" align="start">
-      <MenubarItem @click="toggleShowUploadImgDialog()">
-        <Image class="mr-2 h-4 w-4" />
+    <MenubarContent class="w-56" align="start">
+      <MenubarItem @click="toolbarActions.image()">
+        <ImagePlus class="mr-2 h-4 w-4" />
         {{ t('menu.image') }}
+      </MenubarItem>
+      <MenubarItem @click="toggleShowUploadImgDialog(true)">
+        <UploadCloud class="mr-2 h-4 w-4" />
+        {{ t('menu.imageHost') }}
       </MenubarItem>
       <MenubarItem @click="openFormulaEditor()">
         <span class="mr-2 inline-flex h-4 w-4 items-center justify-center text-xs font-semibold">ƒ</span>

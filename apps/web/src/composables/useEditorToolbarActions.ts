@@ -169,17 +169,8 @@ export function useEditorToolbarActions() {
   }
 
   function image() {
-    // Local image pick (paste/save to assets or data URL) — no cloud host
-    const input = document.createElement(`input`)
-    input.type = `file`
-    input.accept = `image/*`
-    input.multiple = true
-    input.onchange = () => {
-      const files = input.files ? Array.from(input.files) : []
-      if (files.length)
-        window.dispatchEvent(new CustomEvent(`easymd-insert-local-images`, { detail: files }))
-    }
-    input.click()
+    // 与菜单「插入 → 图片」一致：打开图床面板（支持本地插入 + 各云图床）
+    uiStore.toggleShowUploadImgDialog(true)
   }
 
   function table() {

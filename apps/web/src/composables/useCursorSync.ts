@@ -11,6 +11,33 @@ export function useCursorSync(
   const getEditorView = () => toValue(codeMirrorViewRef)
   const uiStore = useUIStore()
 
+  /** 用于区分「单击定位」与「拖拽框选」 */
+  let pointerDownX = 0
+  let pointerDownY = 0
+  let pointerDownInPreview = false
+  const DRAG_SELECT_THRESHOLD_PX = 4
+
+  function onPreviewPointerDown(event: PointerEvent) {
+    const target = event.target as HTMLElement | null
+    if (!target)
+      return
+    const inPreview = !!target.closest(`#output, #preview, .preview-wrapper`)
+    pointerDownInPreview = inPreview
+    if (!inPreview)
+      return
+    pointerDownX = event.clientX
+    pointerDownY = event.clientY
+  }
+
+  if (typeof document !== `undefined`) {
+    document.addEventListener(`pointerdown`, onPreviewPointerDown, true)
+  }
+
+  onUnmounted(() => {
+    if (typeof document !== `undefined`)
+      document.removeEventListener(`pointerdown`, onPreviewPointerDown, true)
+  })
+
   function normalizeText(text: string) {
     return text
       .replace(/\s+/g, ` `)
@@ -122,10 +149,48 @@ export function useCursorSync(
     }
   }
 
+  /**
+   * 框选预览正文后，mouseup 仍会冒泡出 click；若此时把焦点抢回编辑器，
+   * 浏览器会立刻清空选区，导致“非常容易丢失框选状态”。
+   * 有非空选区且落在预览区内时，跳过定位，保留选区以便复制。
+   */
+  function shouldPreservePreviewSelection(target: HTMLElement): boolean {
+    const selection = window.getSelection()
+    if (!selection || selection.isCollapsed)
+      return false
+    if (!selection.toString().trim())
+      return false
+
+    const previewRoot
+      = target.closest(`#output, #preview, .preview-wrapper`) as HTMLElement | null
+        || document.getElementById(`output`)
+        || document.getElementById(`preview`)
+    if (!previewRoot)
+      return false
+
+    const anchor = selection.anchorNode
+    const focus = selection.focusNode
+    if (!anchor || !focus)
+      return false
+
+    return previewRoot.contains(anchor) && previewRoot.contains(focus)
+  }
+
   function handlePreviewContentClick(event: MouseEvent) {
     const target = event.target as HTMLElement | null
     if (!target)
       return
+
+    if (shouldPreservePreviewSelection(target))
+      return
+
+    // 拖拽框选时 pointer 位移超过阈值，即使个别浏览器提前折叠选区也不抢焦点
+    if (pointerDownInPreview) {
+      const dx = Math.abs(event.clientX - pointerDownX)
+      const dy = Math.abs(event.clientY - pointerDownY)
+      if (dx > DRAG_SELECT_THRESHOLD_PX || dy > DRAG_SELECT_THRESHOLD_PX)
+        return
+    }
 
     // 拦截预览区角标 a 标签（以及其他内部锚点链接，如脚注），手动平滑滚动
     const linkEl = target.closest(`a`) as HTMLAnchorElement | null

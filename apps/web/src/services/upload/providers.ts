@@ -112,6 +112,40 @@ async function ghFileUpload(content: string, filename: string) {
 }
 
 // -----------------------------------------------------------------------
+// Gitee File Upload
+// -----------------------------------------------------------------------
+
+async function giteeFileUpload(content: string, filename: string) {
+  const { username, repo, branch, accessToken } = await getConfig(`gitee`)
+  const dir = getDir()
+  const dateFilename = getDateFilename(filename)
+  const path = `${dir}/${dateFilename}`
+  const url = `https://gitee.com/api/v5/repos/${username}/${repo}/contents/${path}`
+
+  interface GiteeContent { download_url?: string, html_url?: string }
+  const res = await fetch<{ content: GiteeContent }, {
+    content?: GiteeContent
+    data?: { content?: GiteeContent }
+    message?: string
+  }>({
+    url,
+    method: `post`,
+    data: {
+      access_token: accessToken,
+      content,
+      message: `Upload by EasyMD`,
+      branch,
+    },
+  })
+
+  const body = res.data?.content || res.content
+  if (body?.download_url)
+    return body.download_url
+  // Gitee raw URL fallback
+  return `https://gitee.com/${username}/${repo}/raw/${branch}/${path}`
+}
+
+// -----------------------------------------------------------------------
 // Qiniu File Upload
 // -----------------------------------------------------------------------
 
@@ -732,36 +766,57 @@ async function formCustomUpload(content: string, file: File) {
   })
 }
 
+const DOMESTIC_HOSTS = new Set([
+  `local`,
+  `gitee`,
+  `aliOSS`,
+  `qiniu`,
+  `txCOS`,
+  `upyun`,
+  `mp`,
+  `minio`,
+  `default`,
+  `formCustom`,
+])
+
 export async function fileUpload(content: string, file: File) {
-  const imgHost = await store.get(`imgHost`)
-  if (!imgHost) {
-    await store.set(`imgHost`, `default`)
+  let imgHost = await store.get(`imgHost`)
+  if (!imgHost || !DOMESTIC_HOSTS.has(imgHost)) {
+    // 未配置或历史国外图床：回退本地插入
+    imgHost = `local`
+    await store.set(`imgHost`, `local`)
+  }
+  if (imgHost === `local`) {
+    throw new Error(`Local image insert should not call cloud upload`)
   }
   switch (imgHost) {
+    case `gitee`:
+      return giteeFileUpload(content, file.name)
     case `aliOSS`:
       return aliOSSFileUpload(file)
-    case `minio`:
-      return minioFileUpload(file)
-    case `s3`:
-      return s3Upload(file)
-    case `txCOS`:
-      return txCOSFileUpload(file)
     case `qiniu`:
       return qiniuUpload(file)
-    case `github`:
-      return ghFileUpload(content, file.name)
-    case `mp`:
-      return mpFileUpload(file)
-    case `r2`:
-      return r2Upload(file)
+    case `txCOS`:
+      return txCOSFileUpload(file)
     case `upyun`:
       return upyunUpload(file)
+    case `mp`:
+      return mpFileUpload(file)
+    case `minio`:
+      return minioFileUpload(file)
+    case `formCustom`:
+      return formCustomUpload(content, file)
+    // 兼容历史配置（UI 已移除国外图床）
+    case `github`:
+      return ghFileUpload(content, file.name)
+    case `s3`:
+      return s3Upload(file)
+    case `r2`:
+      return r2Upload(file)
     case `telegram`:
       return telegramUpload(file)
     case `cloudinary`:
       return cloudinaryUpload(file)
-    case `formCustom`:
-      return formCustomUpload(content, file)
     default:
       return defaultImageUpload(content, file)
   }

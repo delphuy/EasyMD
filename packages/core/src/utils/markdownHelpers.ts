@@ -8,13 +8,21 @@ const MERMAID_PLACEHOLDER_REGEX = /<!--mermaid-start-->[\s\S]*?<!--mermaid-end--
 const PROTECTED_SPAN_REGEX = /<span data-md-protected="(\d+)"><\/span>/g
 
 /**
+ * DOMPurify 默认会把 `C:/...`、`file://`、`asset://` 等当成非法 URI 并剥掉 src。
+ * 本地 Markdown 预览必须保留这些路径，再由桌面端 convertFileSrc 转换。
+ * 仍拒绝 javascript: / vbscript: 等危险协议。
+ */
+export const LOCAL_SAFE_URI_REGEXP
+  = /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|asset|tauri|file|data):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$)|[a-z]:[/\\])/i
+
+/**
  * DOMPurify v3.1.7+ 会强制移除 foreignObject 内容
  * https://github.com/kkomelin/isomorphic-dompurify/pull/290
  * https://github.com/cure53/DOMPurify/issues/1152
  * 使用占位符方案：在 sanitize 前保护特定内容，sanitize 后还原
  * 注意：HTML 注释会被 DOMPurify 移除，所以使用 span 元素作为占位符
  */
-function sanitizeHtml(html: string): string {
+export function sanitizeHtml(html: string): string {
   const protectedContents: string[] = []
 
   // 保护 infographic-diagram（使用注释标记定界，避免嵌套 div 问题）
@@ -35,8 +43,13 @@ function sanitizeHtml(html: string): string {
     },
   )
 
-  // XSS 处理
-  html = DOMPurify.sanitize(html, { ADD_TAGS: [`mp-common-profile`] })
+  // XSS 处理（放宽本地路径 / asset 协议，供桌面预览）
+  // referrerpolicy：预览加载网络图时不带 Referer，避免 Gitee 等图床防盗链 403
+  html = DOMPurify.sanitize(html, {
+    ADD_TAGS: [`mp-common-profile`],
+    ADD_ATTR: [`referrerpolicy`],
+    ALLOWED_URI_REGEXP: LOCAL_SAFE_URI_REGEXP,
+  })
 
   // 还原被保护的内容
   html = html.replace(

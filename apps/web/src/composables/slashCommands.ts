@@ -223,7 +223,8 @@ export function buildSlashCommands(): SlashCommandItem[] {
       keywords: [`image`, `图片`, `img`, `photo`, `picture`],
       icon: `image`,
       action: () => {
-        uiStore.toggleShowUploadImgDialog()
+        // 与菜单/工具栏一致：打开图床面板
+        uiStore.toggleShowUploadImgDialog(true)
       },
     }),
     createCommand({

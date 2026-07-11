@@ -1,22 +1,9 @@
-export { normalizeDocumentPath } from './path'
 export {
-  upsertMarkdownDocument,
   type Doc,
+  upsertMarkdownDocument,
   type UpsertMarkdownDocumentInput,
   type UpsertMarkdownDocumentResult,
 } from './document-model'
-export {
-  saveMarkdownDocument,
-  type SaveDeps,
-  type SaveMarkdownDocumentOptions,
-  type SaveResult,
-  type SaveStatus,
-} from './save'
-export {
-  createTauriSaveDeps,
-  isTauriRuntime,
-  readTextFile,
-} from './tauri-deps'
 export {
   dirnameOfDocument,
   isAbsoluteLocalPath,
@@ -26,4 +13,18 @@ export {
   needsAssetConversion,
   resolveImagePath,
   rewriteHtmlImageSrcs,
+  toRelativeImageSrc,
 } from './local-image'
+export { normalizeDocumentPath } from './path'
+export {
+  type SaveDeps,
+  saveMarkdownDocument,
+  type SaveMarkdownDocumentOptions,
+  type SaveResult,
+  type SaveStatus,
+} from './save'
+export {
+  createTauriSaveDeps,
+  isTauriRuntime,
+  readTextFile,
+} from './tauri-deps'

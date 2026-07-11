@@ -17,18 +17,17 @@ const uiStore = useUIStore()
 const { enableImageReupload } = storeToRefs(uiStore)
 const { toggleImageReupload } = uiStore
 
-// github
-const githubSchema = computed(() => toTypedSchema(yup.object({
-  repo: yup.string().required(t(`upload.validation.githubRepoRequired`)),
+// gitee
+const giteeSchema = computed(() => toTypedSchema(yup.object({
+  repo: yup.string().required(t(`upload.validation.giteeRepoRequired`)),
   branch: yup.string().optional(),
-  accessToken: yup.string().required(t(`upload.validation.githubTokenRequired`)),
-  useCDN: yup.boolean().required(),
+  accessToken: yup.string().required(t(`upload.validation.giteeTokenRequired`)),
 })))
 
-const githubConfig = store.reactive(`githubConfig`, { repo: ``, branch: ``, accessToken: ``, useCDN: false })
+const giteeConfig = store.reactive(`giteeConfig`, { repo: ``, branch: ``, accessToken: `` })
 
-async function githubSubmit(formValues: GenericObject) {
-  Object.assign(githubConfig.value, formValues)
+async function giteeSubmit(formValues: GenericObject) {
+  Object.assign(giteeConfig.value, formValues)
   toast.success(t(`common.saveSuccess`))
 }
 
@@ -130,49 +129,6 @@ async function minioOSSSubmit(formValues: GenericObject) {
   toast.success(t(`common.saveSuccess`))
 }
 
-// S3
-const s3Schema = computed(() => toTypedSchema(yup.object({
-  endpoint: yup.string().optional(),
-  region: yup.string().required(t(`upload.validation.regionRequired`)),
-  bucket: yup.string().required(t(`upload.validation.bucketRequired`)),
-  accessKeyId: yup.string().required(t(`upload.validation.accessKeyIdRequired`)),
-  accessKeySecret: yup.string().required(t(`upload.validation.secretAccessKeyRequired`)),
-  path: yup.string().optional(),
-  cdnHost: yup.string().optional(),
-  pathStyle: yup.boolean().optional(),
-})))
-
-const s3Config = store.reactive(`s3Config`, {
-  endpoint: ``,
-  region: ``,
-  bucket: ``,
-  accessKeyId: ``,
-  accessKeySecret: ``,
-  path: ``,
-  cdnHost: ``,
-  pathStyle: false,
-})
-
-async function s3Submit(formValues: GenericObject) {
-  Object.assign(s3Config.value, formValues)
-  toast.success(t(`common.saveSuccess`))
-}
-
-// Telegram 图床
-const telegramSchema = computed(() => toTypedSchema(
-  yup.object({
-    token: yup.string().required(t(`upload.validation.botTokenRequired`)),
-    chatId: yup.string().required(t(`upload.validation.chatIdRequired`)),
-  }),
-))
-
-const telegramConfig = store.reactive(`telegramConfig`, { token: ``, chatId: `` })
-
-async function telegramSubmit(values: GenericObject) {
-  Object.assign(telegramConfig.value, values)
-  toast.success(t(`common.saveSuccess`))
-}
-
 // 公众号
 // 当前是否为网页（http/https 协议）
 const isWebsite = window.location.protocol.startsWith(`http`)
@@ -215,30 +171,6 @@ async function mpSubmit(formValues: GenericObject) {
   toast.success(t(`common.saveSuccess`))
 }
 
-// Cloudflare R2
-const r2Schema = computed(() => toTypedSchema(yup.object({
-  accountId: yup.string().required(t(`upload.validation.accountIdRequired`)),
-  accessKey: yup.string().required(t(`upload.validation.accessKeyRequired`)),
-  secretKey: yup.string().required(t(`upload.validation.secretKeyRequired`)),
-  bucket: yup.string().required(t(`upload.validation.bucketRequired`)),
-  domain: yup.string().required(t(`upload.validation.domainRequired`)),
-  path: yup.string().optional(),
-})))
-
-const r2Config = store.reactive(`r2Config`, {
-  accountId: ``,
-  accessKey: ``,
-  secretKey: ``,
-  bucket: ``,
-  domain: ``,
-  path: ``,
-})
-
-async function r2Submit(formValues: GenericObject) {
-  Object.assign(r2Config.value, formValues)
-  toast.success(t(`common.saveSuccess`))
-}
-
 // 又拍云
 const upyunSchema = computed(() => toTypedSchema(
   yup.object({
@@ -263,41 +195,22 @@ async function upyunSubmit(formValues: GenericObject) {
   toast.success(t(`common.saveSuccess`))
 }
 
-// Cloudinary
-const cloudinarySchema = computed(() => toTypedSchema(
-  yup.object({
-    cloudName: yup.string().required(t(`upload.validation.cloudNameRequired`)),
-    apiKey: yup.string().required(t(`upload.validation.apiKeyRequired`)),
-    apiSecret: yup.string().optional(),
-    uploadPreset: yup.string().when(`apiSecret`, {
-      is: (v: string | undefined) => !v || v.length === 0,
-      then: s => s.required(t(`upload.validation.uploadPresetRequired`)),
-      otherwise: s => s.optional(),
-    }),
-    folder: yup.string().optional(),
-    domain: yup.string().optional(),
-  }),
-))
-
-const cloudinaryConfig = store.reactive(`cloudinaryConfig`, {
-  cloudName: ``,
-  apiKey: ``,
-  apiSecret: ``,
-  uploadPreset: ``,
-  folder: ``,
-  domain: ``,
-})
-
-async function cloudinarySubmit(formValues: GenericObject) {
-  Object.assign(cloudinaryConfig.value, formValues)
-  toast.success(t(`common.saveSuccess`))
-}
-
 const uploadHostOptions = useLocalizedUploadHostOptions()
 
-const imgHost = store.reactive(`imgHost`, `default`)
+const imgHost = store.reactive(`imgHost`, `local`)
 const useCompression = store.reactive(`useCompression`, false)
 const activeName = ref(`upload`)
+const isLocalHost = computed(() => (imgHost.value || `local`) === `local`)
+
+// 历史国外图床配置迁移为本地插入
+const allowedHosts = computed(() => new Set(uploadHostOptions.value.map(o => o.value)))
+if (!allowedHosts.value.has(imgHost.value as any)) {
+  imgHost.value = `local`
+}
+watch(uploadHostOptions, () => {
+  if (!allowedHosts.value.has(imgHost.value as any))
+    imgHost.value = `local`
+})
 
 async function changeImgHost() {
   toast.success(t(`upload.hostSwitched`))
@@ -307,14 +220,18 @@ async function changeCompression() {
   // reactive 会自动保存，不需要手动操作
 }
 
-async function beforeImageUpload(file: File) {
+async function beforeImageUpload(file: File): Promise<File | false> {
   const checkResult = validateImageFile(file, t)
   if (!checkResult.ok) {
     toast.error(checkResult.msg)
     return false
   }
 
-  const imgHostValue = imgHost.value || `default`
+  const imgHostValue = imgHost.value || `local`
+  // 本地插入无需图床配置
+  if (imgHostValue === `local`)
+    return checkResult.file
+
   const config = await store.get(`${imgHostValue}Config`)
   const isValidHost = imgHostValue === `default` || config
   if (!isValidHost) {
@@ -322,35 +239,52 @@ async function beforeImageUpload(file: File) {
     toast.error(t(`upload.configureHostFirst`, { host: hostLabel }))
     return false
   }
-  return true
+  return checkResult.file
 }
 
 const dragover = ref(false)
 
 const { open, reset, onChange } = useFileDialog({
   accept: `image/*`,
+  multiple: true,
 })
+
+async function processPickedFiles(files: File[] | FileList | null | undefined) {
+  if (!files)
+    return
+  const list = Array.from(files)
+  for (const file of list) {
+    const validated = await beforeImageUpload(file)
+    if (validated)
+      emitUploads(validated)
+  }
+}
 
 onChange(async (files) => {
-  if (files == null) {
-    return
-  }
-
-  const file = files[0]
-
-  if (await beforeImageUpload(file)) {
-    emitUploads(file)
-  }
+  await processPickedFiles(files)
   reset()
 })
+
+/** 选图：本地插入走带真实路径的桌面对话框；云图床用系统文件选择 */
+async function handlePickImages() {
+  if (isLocalHost.value) {
+    try {
+      const { pickLocalImages } = await import(`@/lib/documents/pick-local-images`)
+      const files = await pickLocalImages()
+      await processPickedFiles(files)
+      return
+    }
+    catch (error) {
+      console.warn(`[upload-dialog] local pick failed, fallback`, error)
+    }
+  }
+  open()
+}
 
 async function onDrop(e: DragEvent) {
   dragover.value = false
   e.stopPropagation()
-  const file = [...e.dataTransfer!.files][0]
-  if (await beforeImageUpload(file)) {
-    emitUploads(file)
-  }
+  await processPickedFiles(e.dataTransfer?.files)
 }
 const isUploading = ref(false)
 const imageUrl = ref(``)
@@ -419,7 +353,11 @@ function onTabScroll(e: WheelEvent) {
             </SelectContent>
           </Select>
 
-          <div class="space-y-3 my-4">
+          <p v-if="isLocalHost" class="my-3 text-xs text-muted-foreground">
+            {{ t('upload.localInsertHint') }}
+          </p>
+
+          <div v-else class="space-y-3 my-4">
             <div class="flex items-center justify-between gap-4">
               <span class="text-sm">
                 {{ t('upload.enableCompression') }}
@@ -451,7 +389,7 @@ function onTabScroll(e: WheelEvent) {
             :class="{
               'border-gray-700 bg-gray-400/50 dark:border-gray-200 dark:bg-gray-500/50': dragover,
             }"
-            @click="open()"
+            @click="handlePickImages()"
             @drop.prevent="onDrop"
             @dragover.prevent="dragover = true"
             @dragleave.prevent="dragover = false"
@@ -460,7 +398,7 @@ function onTabScroll(e: WheelEvent) {
             <UploadCloud class="size-16 md:size-20" />
             <p class="text-center text-sm md:text-base px-4">
               {{ t('upload.dragOrClick') }}
-              <strong>{{ t('upload.clickToUpload') }}</strong>
+              <strong>{{ isLocalHost ? t('menu.image') : t('upload.clickToUpload') }}</strong>
             </p>
             <div v-if="imageUrl" class="absolute left-0 right-0 h-full w-full flex items-center justify-center bg-white dark:bg-black">
               <img :src="imageUrl" class="max-h-40 object-contain">
@@ -468,15 +406,15 @@ function onTabScroll(e: WheelEvent) {
           </div>
         </TabsContent>
 
-        <TabsContent value="github" class="flex-1 flex flex-col overflow-hidden">
-          <Form :validation-schema="githubSchema" :initial-values="githubConfig" class="flex flex-col flex-1 overflow-hidden" @submit="githubSubmit">
+        <TabsContent value="gitee" class="flex-1 flex flex-col overflow-hidden">
+          <Form :validation-schema="giteeSchema" :initial-values="giteeConfig" class="flex flex-col flex-1 overflow-hidden" @submit="giteeSubmit">
             <div class="flex-1 overflow-y-auto p-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               <Field v-slot="{ field, errorMessage }" name="repo">
-                <FormItem :label="t('upload.labels.githubRepo')" required :error="errorMessage">
+                <FormItem :label="t('upload.labels.giteeRepo')" required :error="errorMessage">
                   <Input
                     v-bind="field"
                     v-model="field.value"
-                    :placeholder="t('upload.placeholders.githubRepo')"
+                    :placeholder="t('upload.placeholders.giteeRepo')"
                   />
                 </FormItem>
               </Field>
@@ -502,26 +440,15 @@ function onTabScroll(e: WheelEvent) {
                 </FormItem>
               </Field>
 
-              <Field v-slot="{ field, errorMessage }" name="useCDN" type="boolean">
-                <FormItem :label="t('upload.labels.cdnAccel')" :error="errorMessage">
-                  <Switch
-                    :model-value="field.value"
-                    :name="field.name"
-                    @update:model-value="field.onChange"
-                    @blur="field.onBlur"
-                  />
-                </FormItem>
-              </Field>
-
               <FormItem>
                 <Button
                   variant="link"
                   class="p-0 h-auto text-left whitespace-normal"
                   as="a"
-                  href="https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token"
+                  href="https://gitee.com/profile/personal_access_tokens"
                   target="_blank" rel="noopener noreferrer"
                 >
-                  {{ t('upload.help.githubToken') }}
+                  {{ t('upload.help.giteeToken') }}
                 </Button>
               </FormItem>
             </div>
@@ -878,100 +805,6 @@ function onTabScroll(e: WheelEvent) {
           </Form>
         </TabsContent>
 
-        <TabsContent value="s3" class="flex-1 flex flex-col overflow-hidden">
-          <Form :validation-schema="s3Schema" :initial-values="s3Config" class="flex flex-col flex-1 overflow-hidden" @submit="s3Submit">
-            <div class="flex-1 overflow-y-auto p-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-              <Field v-slot="{ field, errorMessage }" name="endpoint">
-                <FormItem label="Endpoint" :error="errorMessage">
-                  <Input
-                    v-bind="field"
-                    v-model="field.value"
-                    :placeholder="t('upload.placeholders.s3Endpoint')"
-                  />
-                </FormItem>
-              </Field>
-
-              <Field v-slot="{ field, errorMessage }" name="region">
-                <FormItem label="Region" required :error="errorMessage">
-                  <Input
-                    v-bind="field"
-                    v-model="field.value"
-                    :placeholder="t('upload.placeholders.s3Region')"
-                  />
-                </FormItem>
-              </Field>
-
-              <Field v-slot="{ field, errorMessage }" name="bucket">
-                <FormItem label="Bucket" required :error="errorMessage">
-                  <Input
-                    v-bind="field"
-                    v-model="field.value"
-                    :placeholder="t('upload.placeholders.s3Bucket')"
-                  />
-                </FormItem>
-              </Field>
-
-              <Field v-slot="{ field, errorMessage }" name="accessKeyId">
-                <FormItem label="AccessKey ID" required :error="errorMessage">
-                  <Input
-                    v-bind="field"
-                    v-model="field.value"
-                    :placeholder="t('upload.placeholders.s3AccessKeyId')"
-                  />
-                </FormItem>
-              </Field>
-
-              <Field v-slot="{ field, errorMessage }" name="accessKeySecret">
-                <FormItem label="AccessKey Secret" required :error="errorMessage">
-                  <Input
-                    v-bind="field"
-                    v-model="field.value"
-                    type="password"
-                    :placeholder="t('upload.placeholders.s3AccessKeySecret')"
-                  />
-                </FormItem>
-              </Field>
-
-              <Field v-slot="{ field, errorMessage }" name="path">
-                <FormItem :label="t('upload.labels.storagePath')" :error="errorMessage">
-                  <Input
-                    v-bind="field"
-                    v-model="field.value"
-                    :placeholder="t('upload.placeholders.storagePathRoot')"
-                  />
-                </FormItem>
-              </Field>
-
-              <Field v-slot="{ field, errorMessage }" name="cdnHost">
-                <FormItem :label="t('upload.labels.customDomain')" :error="errorMessage">
-                  <Input
-                    v-bind="field"
-                    v-model="field.value"
-                    :placeholder="t('upload.placeholders.customDomain')"
-                  />
-                </FormItem>
-              </Field>
-
-              <Field v-slot="{ field, errorMessage }" name="pathStyle" type="boolean">
-                <FormItem label="Force Path Style" :error="errorMessage">
-                  <Switch
-                    :model-value="field.value"
-                    :name="field.name"
-                    @update:model-value="field.onChange"
-                    @blur="field.onBlur"
-                  />
-                </FormItem>
-              </Field>
-            </div>
-
-            <DialogFooter class="p-1">
-              <Button type="submit">
-                {{ t('upload.saveConfig') }}
-              </Button>
-            </DialogFooter>
-          </Form>
-        </TabsContent>
-
         <TabsContent value="mp" class="flex-1 flex flex-col overflow-hidden">
           <Form :validation-schema="mpSchema" :initial-values="mpConfig" class="flex flex-col flex-1 overflow-hidden" @submit="mpSubmit">
             <div class="flex-1 overflow-y-auto p-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
@@ -1042,77 +875,6 @@ function onTabScroll(e: WheelEvent) {
           </Form>
         </TabsContent>
 
-        <TabsContent value="r2" class="flex-1 flex flex-col overflow-hidden">
-          <Form :validation-schema="r2Schema" :initial-values="r2Config" class="flex flex-col flex-1 overflow-hidden" @submit="r2Submit">
-            <div class="flex-1 overflow-y-auto p-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-              <Field v-slot="{ field, errorMessage }" name="accountId">
-                <FormItem label="AccountId" required :error="errorMessage">
-                  <Input v-bind="field" v-model="field.value" :placeholder="t('upload.placeholders.accountId')" class="w-full min-w-0 md:min-w-[350px]" />
-                </FormItem>
-              </Field>
-
-              <Field v-slot="{ field, errorMessage }" name="accessKey">
-                <FormItem label="AccessKey" required :error="errorMessage">
-                  <Input v-bind="field" v-model="field.value" :placeholder="t('upload.placeholders.r2AccessKey')" />
-                </FormItem>
-              </Field>
-
-              <Field v-slot="{ field, errorMessage }" name="secretKey">
-                <FormItem label="SecretKey" required :error="errorMessage">
-                  <Input v-bind="field" v-model="field.value" type="password" :placeholder="t('upload.placeholders.r2SecretKey')" />
-                </FormItem>
-              </Field>
-
-              <Field v-slot="{ field, errorMessage }" name="bucket">
-                <FormItem label="Bucket" required :error="errorMessage">
-                  <Input v-bind="field" v-model="field.value" :placeholder="t('upload.placeholders.qiniuBucket')" />
-                </FormItem>
-              </Field>
-
-              <Field v-slot="{ field, errorMessage }" name="domain">
-                <FormItem :label="t('upload.labels.domain')" required :error="errorMessage">
-                  <Input v-bind="field" v-model="field.value" :placeholder="t('upload.placeholders.r2Domain')" />
-                </FormItem>
-              </Field>
-
-              <Field v-slot="{ field, errorMessage }" name="path">
-                <FormItem :label="t('upload.labels.storagePath')" :error="errorMessage">
-                  <Input v-bind="field" v-model="field.value" :placeholder="t('upload.placeholders.storagePath')" />
-                </FormItem>
-              </Field>
-
-              <FormItem>
-                <div class="flex flex-col items-start">
-                  <Button
-                    variant="link"
-                    class="p-0 h-auto text-left whitespace-normal"
-                    as="a"
-                    href="https://developers.cloudflare.com/r2/api/s3/api/"
-                    target="_blank" rel="noopener noreferrer"
-                  >
-                    {{ t('upload.help.r2S3Api') }}
-                  </Button>
-                  <Button
-                    variant="link"
-                    class="p-0 h-auto text-left whitespace-normal"
-                    as="a"
-                    href="https://developers.cloudflare.com/r2/buckets/cors/"
-                    target="_blank" rel="noopener noreferrer"
-                  >
-                    {{ t('upload.help.r2Cors') }}
-                  </Button>
-                </div>
-              </FormItem>
-            </div>
-
-            <DialogFooter class="p-1">
-              <Button type="submit">
-                {{ t('upload.saveConfig') }}
-              </Button>
-            </DialogFooter>
-          </Form>
-        </TabsContent>
-
         <TabsContent value="upyun" class="flex-1 flex flex-col overflow-hidden">
           <Form :validation-schema="upyunSchema" :initial-values="upyunConfig" class="flex flex-col flex-1 overflow-hidden" @submit="upyunSubmit">
             <div class="flex-1 overflow-y-auto p-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
@@ -1155,122 +917,6 @@ function onTabScroll(e: WheelEvent) {
                   target="_blank" rel="noopener noreferrer"
                 >
                   {{ t('upload.help.upyun') }}
-                </Button>
-              </FormItem>
-            </div>
-
-            <DialogFooter class="p-1">
-              <Button type="submit">
-                {{ t('upload.saveConfig') }}
-              </Button>
-            </DialogFooter>
-          </Form>
-        </TabsContent>
-
-        <TabsContent value="telegram" class="flex-1 flex flex-col overflow-hidden">
-          <Form :validation-schema="telegramSchema" :initial-values="telegramConfig" class="flex flex-col flex-1 overflow-hidden" @submit="telegramSubmit">
-            <div class="flex-1 overflow-y-auto p-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-              <Field v-slot="{ field, errorMessage }" name="token">
-                <FormItem label="Bot Token" required :error="errorMessage">
-                  <Input v-bind="field" v-model="field.value" :placeholder="t('upload.placeholders.telegramToken')" />
-                </FormItem>
-              </Field>
-              <Field v-slot="{ field, errorMessage }" name="chatId">
-                <FormItem label="Chat ID" required :error="errorMessage">
-                  <Input v-bind="field" v-model="field.value" :placeholder="t('upload.placeholders.telegramChatId')" />
-                </FormItem>
-              </Field>
-              <FormItem>
-                <Button
-                  variant="link"
-                  class="p-0 h-auto text-left whitespace-normal"
-                  as="a"
-                  href="https://github.com/doocs/md/blob/main/docs/telegram-usage.md"
-                  target="_blank" rel="noopener noreferrer"
-                >
-                  {{ t('upload.help.telegram') }}
-                </Button>
-              </FormItem>
-            </div>
-
-            <DialogFooter class="p-1">
-              <Button type="submit">
-                {{ t('upload.saveConfig') }}
-              </Button>
-            </DialogFooter>
-          </Form>
-        </TabsContent>
-
-        <TabsContent value="cloudinary" class="flex-1 flex flex-col overflow-hidden">
-          <Form
-            :validation-schema="cloudinarySchema"
-            :initial-values="cloudinaryConfig"
-            class="flex flex-col flex-1 overflow-hidden"
-            @submit="cloudinarySubmit"
-          >
-            <div class="flex-1 overflow-y-auto p-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-              <Field v-slot="{ field, errorMessage }" name="cloudName">
-                <FormItem label="Cloud Name" required :error="errorMessage">
-                  <Input v-bind="field" v-model="field.value" :placeholder="t('upload.placeholders.cloudName')" />
-                </FormItem>
-              </Field>
-
-              <Field v-slot="{ field, errorMessage }" name="apiKey">
-                <FormItem label="API Key" required :error="errorMessage">
-                  <Input v-bind="field" v-model="field.value" :placeholder="t('upload.placeholders.apiKey')" />
-                </FormItem>
-              </Field>
-
-              <Field v-slot="{ field, errorMessage }" name="apiSecret">
-                <FormItem label="API Secret" :error="errorMessage">
-                  <Input
-                    v-bind="field"
-                    v-model="field.value"
-                    type="password"
-                    :placeholder="t('upload.placeholders.apiSecretOptional')"
-                  />
-                </FormItem>
-              </Field>
-
-              <Field v-slot="{ field, errorMessage }" name="uploadPreset">
-                <FormItem label="Upload Preset" :error="errorMessage">
-                  <Input
-                    v-bind="field"
-                    v-model="field.value"
-                    :placeholder="t('upload.placeholders.uploadPresetUnsigned')"
-                  />
-                </FormItem>
-              </Field>
-
-              <Field v-slot="{ field, errorMessage }" name="folder">
-                <FormItem label="Folder" :error="errorMessage">
-                  <Input
-                    v-bind="field"
-                    v-model="field.value"
-                    :placeholder="t('upload.placeholders.cloudinaryFolder')"
-                  />
-                </FormItem>
-              </Field>
-
-              <Field v-slot="{ field, errorMessage }" name="domain">
-                <FormItem :label="t('upload.labels.customDomainCdn')" :error="errorMessage">
-                  <Input
-                    v-bind="field"
-                    v-model="field.value"
-                    :placeholder="t('upload.placeholders.cloudinaryDomain')"
-                  />
-                </FormItem>
-              </Field>
-
-              <FormItem>
-                <Button
-                  variant="link"
-                  class="p-0 h-auto text-left whitespace-normal"
-                  as="a"
-                  href="https://cloudinary.com/documentation/upload_images"
-                  target="_blank" rel="noopener noreferrer"
-                >
-                  {{ t('upload.help.cloudinary') }}
                 </Button>
               </FormItem>
             </div>

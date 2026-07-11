@@ -26,6 +26,7 @@ export default {
     enableScrollSync: `开启同步滚动`,
     lastModified: `上次修改时间`,
     toggleDarkMode: `切换深色模式`,
+    searchContent: `搜索正文...`,
   },
   rightSlider: {
     title: `样式`,
@@ -83,7 +84,8 @@ export default {
     toggleDark: `切换深色模式`,
     stylePanel: `样式面板`,
     formatDocument: `格式化文档`,
-    insertImage: `插入图片`,
+    insertImage: `插入本地图片`,
+    imageHost: `图床配置`,
     insertTable: `插入表格`,
     insertFormula: `插入公式`,
     insertComponent: `插入组件`,
